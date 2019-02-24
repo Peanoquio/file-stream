@@ -70,13 +70,15 @@ router.get('/file/:id', (req, res) => {
 
     data.action = 'download';
     //data.filename = 'test.txt';
-    data.filename = 'test_image.png';
-    //data.filename = 'test_video.mp4';
+    //data.filename = 'test_image.png';
+    data.filename = 'test_video.mp4';
 
     // TODO:  just for testing
     const fileData = {
         size: 10498677,
         mimetype: 'video/mp4',
+        //size: 59992,
+        //mimetype: 'image/png',
     };
 
     switch (data.action) {
@@ -85,7 +87,7 @@ router.get('/file/:id', (req, res) => {
                 throw new Error(`No file name provided`);
             }
             const fileUtil = new FileUtil();
-            fileUtil.decryptAndExtract(data.filename, { response: res, request: req, writeToFile: true, filedata: fileData }).then(result => {
+            fileUtil.streamFileRead(data.filename, { response: res, request: req, writeToFile: true, fileData }).then(result => {
                 /*
                 res.writeHead(200, {
                     "Content-Type": "text/plain",

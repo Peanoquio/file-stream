@@ -23,6 +23,7 @@ class FileUtil {
      */
     constructor(cryptoAlgorithm = ALGO) {
         this.algo = cryptoAlgorithm;
+        // we reuse these streams since FileUtil will be instantiated per request
         this.readStream = null;
         this.transformStream = null;
     }
@@ -46,16 +47,17 @@ class FileUtil {
     /**
      * Compress and encrypt file
      * @param {Buffer|string} param 
-     * @param {string} filename 
+     * @param {string} filePath 
      * @param {Object} options 
+     * @returns {Promise}
      */
-    compressAndEncrypt(param, filename = '', options = {}) {
+    compressAndEncrypt(param, filePath = '', options = {}) {
         return new Promise((resolve, reject) => {
             if (!this.readStream) {
                 if (Buffer.isBuffer(param)) {
                     this.readStream = streamifier.createReadStream(param, options);
                 } else if (typeof param === 'string') {
-                    filename = param;
+                    filePath = param;
                     this.readStream = fs.createReadStream(param, options);
                 } else {
                     throw new TypeError(`param has invalid type: ${typeof param}`);
@@ -74,13 +76,13 @@ class FileUtil {
                     reject(err);
                 })
                 .pipe(this.showProgress())
-                .pipe(fs.createWriteStream(`${filename}.gz`))
+                .pipe(fs.createWriteStream(`${filePath}.gz`))
                 .on('error', (err) => {
                     console.error('file creation error:', err);
                     reject(err);
                 })
                 .on('finish', () => {
-                    console.log(`Completed compressing and encrypting file: ${filename}`);
+                    console.log(`completed compressing and encrypting file: ${filePath}`);
                     resolve(true);
                 });
         });
@@ -88,18 +90,14 @@ class FileUtil {
 
     /**
      * Decrypt and extract file
-     * @param {string} filename 
+     * @param {string} filePath 
      * @param {Object} params
+     * @returns {Promise}
      */
-    decryptAndExtract(filename, { response, request, writeToFile, filedata }) {
-        const fileSize = filedata.size
-        const range = request.headers.range
-        console.log('range:', range);
-        console.log('filedata:', filedata);
-
+    decryptAndExtract(filePath, { writeToFile }) {
         return new Promise((resolve, reject) => {
             if (!this.readStream) {
-                this.readStream = fs.createReadStream(`${filename}.gz`);
+                this.readStream = fs.createReadStream(`${filePath}.gz`);
             }
 
             const decryptedExtractedReadStream = this.readStream
@@ -115,14 +113,14 @@ class FileUtil {
                 })
                 .pipe(this.showProgress())
                 .on('finish', () => {
-                    console.log(`Completed decrypting and extracting file: ${filename}`);
+                    console.log(`completed decrypting and extracting file: ${filePath}`);
                 });
 
             // stream to a file
             decryptedExtractedReadStream
                 .pipe((function() {
                     if (writeToFile) {
-                        return fs.createWriteStream(`${filename}`);
+                        return fs.createWriteStream(`${filePath}`);
                     } else {
                         return new PassThrough();
                     }
@@ -133,30 +131,137 @@ class FileUtil {
                 })
                 .on('finish', () => {
                     if (writeToFile) {
-                        console.log(`Completed streaming to file: ${filename}`);
-                        resolve(true);
+                        console.log(`completed streaming to file: ${filePath}`);
                     }
                 });
 
-            // stream back to the HTTP response
-            decryptedExtractedReadStream
-                .pipe((function() {
-                    if (response) {
-                        return response;
-                    } else {
-                        return new PassThrough();
-                    }
-                })())
-                .on('error', (err) => {
-                    console.error('stream to response error:', err);
-                    reject(err);
-                })
-                .on('finish', () => {
-                    if (response) {
-                        console.log(`Completed streaming to response: ${filename}`);
-                        resolve(true);
-                    }
-                });
+            resolve(decryptedExtractedReadStream);
+        });
+    }
+
+    /**
+     * Streams the file (being read)
+     * @param {string} filePath 
+     * @param {Object} params 
+     * @returns {Promise}
+     */
+    async streamFileRead(filePath, { response, request, writeToFile, fileData }) {
+        return new Promise(async (resolve, reject) => {
+            const fileType = fileData.mimetype;
+            console.log('fileData:', fileData);
+
+            // check if the decrypted/extracted file already exists
+            fs.exists(filePath, async (exists) => {
+                if (exists) {
+                    // streaming in chunks
+                    await this.streamChunkToHttpResponse(response, request, filePath, fileType);
+                } else {
+                    const decryptedExtractedReadStream = await this.decryptAndExtract(filePath, { response, request, writeToFile, fileData });
+                
+                    // stream back to the HTTP response
+                    decryptedExtractedReadStream
+                        .pipe((function() {
+                            if (response) {
+                                return response;
+                            } else {
+                                return new PassThrough();
+                            }
+                        })())
+                        .on('error', (err) => {
+                            console.error('stream to response error:', err);
+                            reject(err);
+                        })
+                        .on('finish', () => {
+                            if (response) {
+                                console.log(`completed streaming to response: ${filePath}`);
+                                resolve(true);
+                            }
+                        });
+                }
+            });
+        });
+    }
+
+    /**
+     * Streams chunk by chunk to the HTTP response
+     * @param {Response} response 
+     * @param {Request} request 
+     * @param {string} filePath 
+     * @param {string} fileType 
+     * @returns {Promise}
+     */
+    streamChunkToHttpResponse(response, request, filePath, fileType) {
+        return new Promise((resolve, reject) => {
+            const httpHeaderRange = request.headers.range
+            console.log('httpHeaderRange:', httpHeaderRange);
+
+            const fileStat = fs.statSync(filePath);
+            const fileSize = fileStat.size;
+
+            // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range
+            if (httpHeaderRange) {
+                const parts = httpHeaderRange.replace(/bytes=/, "").split("-");
+                // get the start and end bytes (parse to decimal int)
+                const start = parseInt(parts[0], 10);
+                const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+                // size of the chunk
+                const chunksize = (end - start) + 1;
+
+                if (!this.readStream) {
+                    this.readStream = fs.createReadStream(`${filePath}`, { start, end });
+                }
+
+                // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Range
+                // The Content-Range response HTTP header indicates where in a full body message a partial message belongs.
+                const head = {
+                    'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+                    'Accept-Ranges': 'bytes',
+                    'Content-Length': chunksize,
+                    'Content-Type': fileType,
+                }
+                /*
+                The HTTP 206 Partial Content success status response code indicates that the request has succeeded 
+                and has the body contains the requested ranges of data, as described in the Range header of the request.
+                If there is only one range, the Content-Type of the whole response is set to the type of the document, 
+                and a Content-Range is provided.
+                If several ranges are sent back, the Content-Type is set to multipart/byteranges and each fragment covers one range, 
+                with Content-Range and Content-Type describing it.
+                */
+                response.writeHead(206, head);
+                this.readStream
+                    .pipe(response)
+                    .on('error', (err) => {
+                        console.error('stream partial chunk to response error:', err);
+                        reject(err);
+                    })
+                    .on('finish', () => {
+                        if (response) {
+                            console.log(`completed streaming partial chunk to response: ${filePath}`);
+                            resolve(true);
+                        }
+                    });
+            } else {
+                const head = {
+                    'Content-Length': fileSize,
+                    'Content-Type': fileType,
+                }
+                if (!this.readStream) {
+                    this.readStream = fs.createReadStream(`${filePath}`);
+                }
+                response.writeHead(200, head);
+                this.readStream
+                    .pipe(response)
+                    .on('error', (err) => {
+                        console.error('stream chunk to response error:', err);
+                        reject(err);
+                    })
+                    .on('finish', () => {
+                        if (response) {
+                            console.log(`completed streaming chunk to response: ${filePath}`);
+                            resolve(true);
+                        }
+                    });
+            }
         });
     }
 
