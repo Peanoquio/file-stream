@@ -5,11 +5,12 @@ const crypto = require('crypto');
 const streamifier = require('streamifier');
 const { Transform, PassThrough } = require('stream');
 
+const configJson = require('../config/config.json');
+
+
 // default crypto alogrithm
 //const ALGO = 'aes-256-ctr';
 const ALGO = 'aes192';
-// TODO: specify own secret key
-const SECRET_KEY = 'secret';
 
 
 /**
@@ -70,7 +71,7 @@ class FileUtil {
                     console.error('file compression error:', err);
                     reject(err);
                 })
-                .pipe(crypto.createCipher(this.algo, SECRET_KEY)) // encrypt file
+                .pipe(crypto.createCipher(this.algo, configJson.FILE_CRYPTO_SECRET_KEY)) // encrypt file
                 .on('error', (err) => {
                     console.error('file encryption error:', err);
                     reject(err);
@@ -101,7 +102,7 @@ class FileUtil {
             }
 
             const decryptedExtractedReadStream = this.readStream
-                .pipe(crypto.createDecipher(this.algo, SECRET_KEY)) // decrypt file
+                .pipe(crypto.createDecipher(this.algo, configJson.FILE_CRYPTO_SECRET_KEY)) // decrypt file
                 .on('error', (err) => {
                     console.error('file decryption error:', err);
                     reject(err);
@@ -237,8 +238,8 @@ class FileUtil {
                     .on('finish', () => {
                         if (response) {
                             console.log(`completed streaming partial chunk to response: ${filePath}`);
-                            resolve(true);
                         }
+                        resolve(true);
                     });
             } else {
                 const head = {
@@ -258,8 +259,8 @@ class FileUtil {
                     .on('finish', () => {
                         if (response) {
                             console.log(`completed streaming chunk to response: ${filePath}`);
-                            resolve(true);
                         }
+                        resolve(true);
                     });
             }
         });
