@@ -1,4 +1,7 @@
 {
+    "HTTP_SERVER_PORT": 3001,
     "FILE_CRYPTO_SECRET_KEY": "secret",
-    "AWS_BUCKET_NAME": "some.bucket"
+    "FILE_PATH_DIR": "files/",
+    "AWS_BUCKET_NAME": "peanoquio.test.bucket",
+    "AWS_BUCKET_FOLDER_NAME": "testing"
 }
