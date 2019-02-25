@@ -3,10 +3,13 @@ const cors = require('cors');
 const ip = require('ip');
 const bodyParser = require('body-parser');
 
+const configJson = require('./config/config.json');
 const router = require('./router');
 
+console.log('Starting server with config:', configJson);
+
 const app = express();
-const PORT = 3001;
+const PORT = configJson.HTTP_SERVER_PORT;
 
 // parses the text as JSON and exposes the resulting object on req.body.
 app.use(bodyParser.urlencoded({ extended: true }));
