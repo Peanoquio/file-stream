@@ -1,5 +1,8 @@
+const path = require('path');
 const AWS = require('aws-sdk');
-AWS.config.loadFromPath('../config/aws-config.json');
+
+const awsConfigPath = path.join(__dirname, '..', 'config', 'aws-config.json');
+AWS.config.loadFromPath(awsConfigPath);
 
 // Minimum 5MB per chunk (except the last part) 
 // http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
@@ -130,8 +133,6 @@ class AwsUtil {
                 Quiet: false
             }
         };
-
-        console.log('??????', params);
 
         params = Object.assign(params, awsOptions);
 
