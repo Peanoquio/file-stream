@@ -3,7 +3,8 @@ const router = express.Router();
 const multer  = require('multer')
 const upload = multer();
 
-const FileUtil = require('./src/fileUtil');
+const configJson = require('./config/config.json');
+const fileUtil = require('./src/fileUtil');
 
 
 const ACTIONS = {
@@ -18,6 +19,9 @@ router.get('/', (req, res) => {
     res.send('Hello from the other world!!!');
 });
 
+/**
+ * 
+ */
 router.post('/file/:id', upload.single('filetoupload'), async (req, res) => {
     const params = req.params;
     const data = req.body;
@@ -40,8 +44,10 @@ router.post('/file/:id', upload.single('filetoupload'), async (req, res) => {
     console.log('data:', data);
     console.log('file:', file);
 
+    let postResult = null;
+    let postError = null;
+
     try {
-        let result = null;
         switch (data.action) {
             case ACTIONS.UPLOAD:
                 if (!file.originalname || file.originalname === '') {
@@ -49,19 +55,26 @@ router.post('/file/:id', upload.single('filetoupload'), async (req, res) => {
                 } else if (file.size <= 0) {
                     throw new Error(`File is empty`);
                 }
-                const fileUtil = new FileUtil();
-                result = await fileUtil.compressAndEncrypt(file.buffer, file.originalname);
+                postResult = await fileUtil.streamFileWrite(file.buffer, file.originalname, { 
+                    writeToFile: true, 
+                    uploadToAws: true, 
+                    awsParams: { Bucket: configJson.AWS_BUCKET_NAME }
+                });
                 break;
             default:
-                throw new RangeError(`Invalid action: ${data.action}`);
+                postError = new RangeError(`Invalid action: ${data.action}`);
         }
-        res.json( { msg: 'The server got the data', data, result });
     } catch (err) {
-        res.json( { msg: 'The server got the data', data, err });
+        postError = err;
+    } finally {
+        res.json({ result: postResult, error: postError });
     }
 }); 
 
-router.get('/file/:id', (req, res) => {
+/**
+ * 
+ */
+router.get('/file/:id', async (req, res) => {
     const params = req.params;
     const data = req.body;
 
@@ -81,28 +94,25 @@ router.get('/file/:id', (req, res) => {
         //mimetype: 'image/png',
     };
 
-    switch (data.action) {
-        case ACTIONS.DOWNLOAD:
-            if (!data.filename || data.filename === '') {
-                throw new Error(`No file name provided`);
-            }
-            const fileUtil = new FileUtil();
-            fileUtil.streamFileRead(data.filename, { response: res, request: req, writeToFile: true, fileData }).then(result => {
-                /*
-                res.writeHead(200, {
-                    "Content-Type": "text/plain",
-                    //"Content-Disposition" : "attachment; filename=prediction_1.txt"
-                });
-                */
-            }).catch(err => {
-                console.error(err);
-            }); 
-            break;
-        default:
-            throw new RangeError(`Invalid action: ${data.action}`);
-    }
+    let getResult = null;
+    let getError = null;
 
-    //res.json( { msg: 'The server got the data', data });
+    try {
+        switch (data.action) {
+            case ACTIONS.DOWNLOAD:
+                if (!data.filename || data.filename === '') {
+                    throw new Error(`No file name provided`);
+                }
+                getResult = await fileUtil.streamFileRead(data.filename, { response: res, request: req, writeToFile: true, fileData });
+                break;
+            default:
+                getError = new RangeError(`Invalid action: ${data.action}`);
+        }
+    } catch (err) {
+        getError = err;
+    } finally {
+        res.json({ result: getResult, error: getError });
+    }
 });
 
 router.get('/file/all', (req, res) => {
