@@ -5,7 +5,6 @@ const upload = multer();
 
 const configJson = require('./config/config.json');
 const fileUtil = require('./src/fileUtil');
-const awsUtil = require('./src/awsUtil');
 
 
 const ACTIONS = {
@@ -16,6 +15,9 @@ const ACTIONS = {
 };
 
 
+/**
+ * Just for testing
+ */
 router.get('/', (req, res) => {
     res.send('Hello from the other world!!!');
 });
@@ -110,10 +112,9 @@ router.get('/file/:extType/:name', async (req, res) => {
     }
 });
 
-router.get('/file/all', (req, res) => {
-    
-});
-
+/**
+ * Delete the file based on the extension type and file name
+ */
 router.delete('/file/:extType/:name', async (req, res) => {
     const params = req.params;
     const data = req.body;
@@ -140,10 +141,15 @@ router.delete('/file/:extType/:name', async (req, res) => {
         delError = err;
         console.error(`delError`, delError);
     } finally {
-        if (delError) {
-            res.json({ error: delError });
-        }
+        res.json({ result: delResult, error: delError });
     }
+});
+
+/**
+ * List all the files
+ */
+router.get('/file/list', (req, res) => {
+    
 });
 
 

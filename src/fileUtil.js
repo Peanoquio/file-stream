@@ -460,6 +460,7 @@ class FileUtil {
          * Delete the files/objects
          * @param {Array} fileNameList 
          * @param {boolean} deleteFileLocally
+         * @returns {boolean}
          */
         const deleteFilesAndObjects = async (fileNameList, deleteFileLocally) => {
             let indexWhichFailed = 0;
@@ -493,13 +494,15 @@ class FileUtil {
                     indexWhichFailed = i;
                     // if file does not exist error
                     if (err.code === 'ENOENT') {
-                        // recursive call (delete AWS only and start from the file index which failed)
+                        // recursive call (delete AWS only and start from the index which failed)
                         await deleteFilesAndObjects(fileNameList.slice(indexWhichFailed), false);
                     } else {
                         throw err;
                     }
                 }
             } // end loop
+
+            return true;
         };
 
         return new Promise(async (resolve, reject) => {
