@@ -134,14 +134,14 @@ class FileUtil {
      * @param {Object} readStreamOptions 
      * @returns {Promise}
      */
-    streamFileWrite(param, fileName, { writeToFile = configJson.FILE_WRITE_TO_LOCAL_DIR, awsParams = {} } = {}, readStreamOptions = {}) {
+    streamFileWrite(param, fileName, { writeToFileLocally = configJson.FILE_WRITE_TO_LOCAL_DIR, awsParams = {} } = {}, readStreamOptions = {}) {
         return new Promise(async (resolve, reject) => {
             try {
                 const filePath = path.join(__dirname, '..', configJson.FILE_PATH_DIR, fileName);
 
                 const encryptedCompressedReadStream = await this.compressAndEncrypt(param, filePath, readStreamOptions);
 
-                if (writeToFile) {
+                if (writeToFileLocally) {
                     // stream to a file
                     encryptedCompressedReadStream
                         .pipe(fs.createWriteStream(`${filePath}${COMPRESSED_FILE_EXT}`))
@@ -208,7 +208,7 @@ class FileUtil {
      * @param {Objet} readStreamOptions
      * @returns {Promise}
      */
-    decryptAndExtract(buffer, filePath, { writeToFile = configJson.FILE_WRITE_TO_LOCAL_DIR }, readStreamOptions = {}) {
+    decryptAndExtract(buffer, filePath, { writeToFileLocally = configJson.FILE_WRITE_TO_LOCAL_DIR }, readStreamOptions = {}) {
         return new Promise(async (resolve, reject) => {
             try {
                 const encryptedCompressedFilePath = `${filePath}${COMPRESSED_FILE_EXT}`;
@@ -235,7 +235,7 @@ class FileUtil {
                 // stream to a file
                 decryptedExtractedReadStream
                     .pipe((function() {
-                        if (writeToFile) {
+                        if (writeToFileLocally) {
                             return fs.createWriteStream(`${filePath}`);
                         } else {
                             return new PassThrough();
@@ -246,7 +246,7 @@ class FileUtil {
                         reject(err);
                     })
                     .on('finish', () => {
-                        if (writeToFile) {
+                        if (writeToFileLocally) {
                             console.log(`completed streaming to file: ${filePath}`);
                         }
                     });
@@ -267,7 +267,7 @@ class FileUtil {
      * @param {Object} readStreamOptions
      * @returns {Promise}
      */
-    streamFileRead(fileName, { response, request, writeToFile = configJson.FILE_WRITE_TO_LOCAL_DIR, awsParams = {} }, readStreamOptions = {}) {
+    streamFileRead(fileName, { response, request, writeToFileLocally = configJson.FILE_WRITE_TO_LOCAL_DIR, awsParams = {} }, readStreamOptions = {}) {
         return new Promise(async (resolve, reject) => {
             const filePath = path.join(__dirname, '..', configJson.FILE_PATH_DIR, fileName);
 
@@ -290,7 +290,7 @@ class FileUtil {
                         const fileObj = await awsUtil.getObject(awsParams);
                         // pass the buffer
                         const bufferObj = fileObj.Body;
-                        const decryptedExtractedReadStream = await this.decryptAndExtract(bufferObj, filePath, { writeToFile }, readStreamOptions);
+                        const decryptedExtractedReadStream = await this.decryptAndExtract(bufferObj, filePath, { writeToFileLocally }, readStreamOptions);
                     
                         // stream back to the HTTP response
                         decryptedExtractedReadStream
@@ -430,6 +430,87 @@ class FileUtil {
                 reject(err);
             }
         });
+    }
+
+    /**
+     * Delete the files
+     * @param {Array} fileNameList 
+     * @param {Object} params
+     * @returns {Promise}
+     */
+    deleteFiles(fileNameList, { deleteFileLocally = configJson.FILE_WRITE_TO_LOCAL_DIR, awsParams = {}}) {
+        /**
+         * Helper function to delete file
+         * @param {string} filePath 
+         * @returns {Promise}
+         */
+        const deleteFileHelper = (filePath) => {
+            return new Promise((resolve, reject) => {
+                fs.unlink(filePath, (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve(true);
+                    }
+                });
+            });
+        };
+
+        /**
+         * Delete the files/objects
+         * @param {Array} fileNameList 
+         * @param {boolean} deleteFileLocally
+         */
+        const deleteFilesAndObjects = async (fileNameList, deleteFileLocally) => {
+            let indexWhichFailed = 0;
+            for (let i = 0, len = fileNameList.length; i < len; ++i) {
+                let fileName = null;
+                try {
+                    fileName = fileNameList[i];
+
+                    if (deleteFileLocally) {
+                        let filePath = path.join(__dirname, '..', configJson.FILE_PATH_DIR, fileName);
+                        let success = await deleteFileHelper(filePath);
+                        if (success) {
+                            console.log(`The files has been successfully deleted: ${filePath}`);
+                        }
+                    }
+
+                    if (configJson.AWS_READ_WRITE_ACCESS) {
+                        if (!awsParams.Bucket || (awsParams.Bucket && typeof awsParams.Bucket !== 'string')) {
+                            throw new Error(`deleteFiles error due to invalid awsParams.Bucket: ${awsParams.Bucket}`);
+                        } 
+                        let awsBucketKey = `${configJson.AWS_BUCKET_FOLDER_NAME}/${fileName}${COMPRESSED_FILE_EXT}`;
+                        awsParams.Keys = [ awsBucketKey ];
+                        // delete objects from AWS
+                        let data = await awsUtil.deleteObjects(awsParams);
+                        if (data) {
+                            console.log(`The AWS object has been successfully deleted: ${awsBucketKey} data:`, data);
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error encountered during deletion: ${fileName}`, err);
+                    indexWhichFailed = i;
+                    // if file does not exist error
+                    if (err.code === 'ENOENT') {
+                        // recursive call (delete AWS only and start from the file index which failed)
+                        await deleteFilesAndObjects(fileNameList.slice(indexWhichFailed), false);
+                    } else {
+                        throw err;
+                    }
+                }
+            } // end loop
+        };
+
+        return new Promise(async (resolve, reject) => {
+            try {
+                await deleteFilesAndObjects(fileNameList, deleteFileLocally);
+                resolve(true);
+            } catch (err) {
+                console.error('deleteFiles error:', err);
+                reject(err);
+            }
+        });   
     }
 
 } // end class

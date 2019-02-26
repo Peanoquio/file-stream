@@ -5,6 +5,7 @@ const upload = multer();
 
 const configJson = require('./config/config.json');
 const fileUtil = require('./src/fileUtil');
+const awsUtil = require('./src/awsUtil');
 
 
 const ACTIONS = {
@@ -113,8 +114,36 @@ router.get('/file/all', (req, res) => {
     
 });
 
-router.delete('/file/:id', (req, res) => {
-    
+router.delete('/file/:extType/:name', async (req, res) => {
+    const params = req.params;
+    const data = req.body;
+
+    console.log('params:', params);
+    console.log('data:', data);
+
+    let delResult = null;
+    let delError = null;
+
+    try {
+        data.action = ACTIONS.DELETE;
+        data.filename = `${params.name}.${params.extType}`;
+
+        if (!data.filename || data.filename === '') {
+            throw new Error(`No file name provided`);
+        }
+
+        delResult = await fileUtil.deleteFiles([ data.filename ], {
+            awsParams: { Bucket: configJson.AWS_BUCKET_NAME }
+        });
+
+    } catch (err) {
+        delError = err;
+        console.error(`delError`, delError);
+    } finally {
+        if (delError) {
+            res.json({ error: delError });
+        }
+    }
 });
 
 
