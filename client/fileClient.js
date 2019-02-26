@@ -1,5 +1,5 @@
 (function() {
-    const URL = 'http://127.0.0.1:3001/file/123';
+    const URL = 'http://127.0.0.1:3001/file';
 
     let file = null;
 
@@ -11,7 +11,8 @@
      * @param {*} file 
      */
     const uploadFile = (file) => {
-        const url = URL;
+        const fileNameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.'));
+        let url = `${URL}/${fileNameWithoutExt}`;
         
         // form data
         const formData = new FormData();

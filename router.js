@@ -20,9 +20,10 @@ router.get('/', (req, res) => {
 });
 
 /**
- * 
+ * Upload the file based on the name
+ * The most important part is that the Request object should have the <file> property where its <buffer> contains the actual binary data of the file
  */
-router.post('/file/:id', upload.single('filetoupload'), async (req, res) => {
+router.post('/file/:name', upload.single('filetoupload'), async (req, res) => {
     const params = req.params;
     const data = req.body;
     const file = req.file;
@@ -55,9 +56,10 @@ router.post('/file/:id', upload.single('filetoupload'), async (req, res) => {
                 } else if (file.size <= 0) {
                     throw new Error(`File is empty`);
                 }
-                postResult = await fileUtil.streamFileWrite(file.buffer, file.originalname, { 
-                    writeToFile: true, 
-                    uploadToAws: true, 
+                const fileExt = file.originalname.substring(file.originalname.lastIndexOf('.'));
+                file.newname = `${params.name}${fileExt}`;
+
+                postResult = await fileUtil.streamFileWrite(file.buffer, file.newname, { 
                     awsParams: { Bucket: configJson.AWS_BUCKET_NAME }
                 });
                 break;
@@ -72,46 +74,38 @@ router.post('/file/:id', upload.single('filetoupload'), async (req, res) => {
 }); 
 
 /**
- * 
+ * Get the file based on the extension type and file name
  */
-router.get('/file/:id', async (req, res) => {
+router.get('/file/:extType/:name', async (req, res) => {
     const params = req.params;
     const data = req.body;
 
     console.log('params:', params);
     console.log('data:', data);
 
-    data.action = 'download';
-    //data.filename = 'test.txt';
-    //data.filename = 'test_image.png';
-    data.filename = 'test_video.mp4';
-
-    // TODO:  just for testing
-    const fileData = {
-        size: 10498677,
-        mimetype: 'video/mp4',
-        //size: 59992,
-        //mimetype: 'image/png',
-    };
-
     let getResult = null;
     let getError = null;
 
     try {
-        switch (data.action) {
-            case ACTIONS.DOWNLOAD:
-                if (!data.filename || data.filename === '') {
-                    throw new Error(`No file name provided`);
-                }
-                getResult = await fileUtil.streamFileRead(data.filename, { response: res, request: req, writeToFile: true, fileData });
-                break;
-            default:
-                getError = new RangeError(`Invalid action: ${data.action}`);
+        data.action = ACTIONS.DOWNLOAD;
+        data.filename = `${params.name}.${params.extType}`;
+
+        if (!data.filename || data.filename === '') {
+            throw new Error(`No file name provided`);
         }
+        getResult = await fileUtil.streamFileRead(data.filename, { 
+            response: res, 
+            request: req, 
+            awsParams: { Bucket: configJson.AWS_BUCKET_NAME }
+        });
+
     } catch (err) {
         getError = err;
+        console.error(`getError`, getError);
     } finally {
-        res.json({ result: getResult, error: getError });
+        if (getError) {
+            res.json({ error: getError });
+        }
     }
 });
 
