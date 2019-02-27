@@ -516,6 +516,31 @@ class FileUtil {
         });   
     }
 
+    /**
+     * List the files
+     * @param {Object} params
+     * @return {Promise}
+     */
+    listFiles({ awsParams = {} }) {
+        return new Promise((resolve, reject) => {
+            try {
+                if (configJson.AWS_READ_WRITE_ACCESS) {
+                    if (!awsParams.Bucket || (awsParams.Bucket && typeof awsParams.Bucket !== 'string')) {
+                        throw new Error(`listFiles error due to invalid awsParams.Bucket: ${awsParams.Bucket}`);
+                    } 
+                    // list the object from AWS
+                    const data = awsUtil.listObjects(awsParams);
+                    resolve(data);
+                } else {
+                    resolve(null);
+                }
+                
+            } catch(err) {
+                reject(err);
+            }
+        });
+    }
+
 } // end class
 
 

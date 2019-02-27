@@ -26,7 +26,7 @@ router.get('/', (req, res) => {
  * Upload the file based on the name
  * The most important part is that the Request object should have the <file> property where its <buffer> contains the actual binary data of the file
  */
-router.post('/file/:name', upload.single('filetoupload'), async (req, res) => {
+router.post('/file/:name', upload.single(configJson.FILE_FORM_UPLOAD_FIELD_KEY), async (req, res) => {
     const params = req.params;
     const data = req.body;
     const file = req.file;
@@ -44,9 +44,9 @@ router.post('/file/:name', upload.single('filetoupload'), async (req, res) => {
     }
     */
 
-    console.log('params:', params);
-    console.log('data:', data);
-    console.log('file:', file);
+    console.log('REST upload params:', params);
+    console.log('REST upload data:', data);
+    console.log('REST upload file:', file);
 
     let postResult = null;
     let postError = null;
@@ -83,8 +83,8 @@ router.get('/file/:extType/:name', async (req, res) => {
     const params = req.params;
     const data = req.body;
 
-    console.log('params:', params);
-    console.log('data:', data);
+    console.log('REST get params:', params);
+    console.log('REST get data:', data);
 
     let getResult = null;
     let getError = null;
@@ -119,8 +119,8 @@ router.delete('/file/:extType/:name', async (req, res) => {
     const params = req.params;
     const data = req.body;
 
-    console.log('params:', params);
-    console.log('data:', data);
+    console.log('REST delete params:', params);
+    console.log('REST delete data:', data);
 
     let delResult = null;
     let delError = null;
@@ -148,8 +148,29 @@ router.delete('/file/:extType/:name', async (req, res) => {
 /**
  * List all the files
  */
-router.get('/file/list', (req, res) => {
-    
+router.get('/file/list', async (req, res) => {
+    const params = req.params;
+    const data = req.body;
+
+    console.log('REST list params:', params);
+    console.log('REST list data:', data);
+
+    let listResult = null;
+    let listError = null;
+
+    try {
+        data.action = ACTIONS.LIST;
+
+        listResult = await fileUtil.listFiles({
+            awsParams: { Bucket: configJson.AWS_BUCKET_NAME }
+        });
+
+    } catch (err) {
+        listError = err;
+        console.error(`listError`, listError);
+    } finally {
+        res.json({ result: listResult, error: listError });
+    }
 });
 
 
