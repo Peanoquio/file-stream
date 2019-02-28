@@ -522,15 +522,35 @@ class FileUtil {
      * @return {Promise}
      */
     listFiles({ awsParams = {} }) {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             try {
                 if (configJson.AWS_READ_WRITE_ACCESS) {
                     if (!awsParams.Bucket || (awsParams.Bucket && typeof awsParams.Bucket !== 'string')) {
                         throw new Error(`listFiles error due to invalid awsParams.Bucket: ${awsParams.Bucket}`);
                     } 
                     // list the object from AWS
-                    const data = awsUtil.listObjects(awsParams);
-                    resolve(data);
+                    const data = await awsUtil.listObjects(awsParams);
+                    // format the data
+                    const bucketFolderNameLen = configJson.AWS_BUCKET_FOLDER_NAME.length;
+                    const formattedData = data.Contents.map((content, index) => {
+                        let key = content.Key;
+                        let fileName = key.substring(key.indexOf(`${configJson.AWS_BUCKET_FOLDER_NAME}/`) + bucketFolderNameLen + 1);
+                        let name = fileName.substring(0, fileName.indexOf('.'));
+                        let extension = fileName.substring(fileName.indexOf('.'), fileName.lastIndexOf('.'));
+                        let mimeType = mime.getType(extension.substring(1));
+                        return {
+                            Bucket: awsParams.Bucket,
+                            Key: content.Key,
+                            Size: content.Size,
+                            LastModified: content.LastModified,
+                            ETag: content.ETag,
+                            FileName: fileName,
+                            Name: name,
+                            Extension: extension,
+                            MimeType: mimeType
+                        };
+                    });
+                    resolve(formattedData);
                 } else {
                     resolve(null);
                 }
