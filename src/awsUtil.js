@@ -93,8 +93,8 @@ class AwsUtil {
      * @param {Function} callback 
      * @returns {AWS.Request.promise}
      */
-    listObjects({ Bucket, MaxKeys }, awsOptions = {}, callback = null) {
-        let params = { Bucket, MaxKeys };
+    listObjects({ Bucket, Prefix, MaxKeys }, awsOptions = {}, callback = null) {
+        let params = { Bucket, Prefix, MaxKeys };
         params = Object.assign(params, awsOptions);
 
         if (callback) {
@@ -206,17 +206,29 @@ class AwsUtil {
         };
 
         try {
+            const manualTimeoutSecs = 30;
+            const timeoutObj = setTimeout(() => {
+                throw new Error(`AWS server has not responded to upload: ${Bucket}/${Key} in secs: ${manualTimeoutSecs}`);
+            }, 1000 * manualTimeoutSecs);
+            
             const data = await uploadHelper(params);
             // { ETag, VersionId }
             console.log(`Successfully uploaded: ${Bucket}/${Key} data:`, data);
+            // clear manual timeout
+            clearTimeout(timeoutObj);
+
             callback(null, data);
         } catch(err) {
             console.error(`Error when uploading: ${Bucket}/${Key} error:` , err);
-            // support retry
+            // support retry with delay
             if (retryNum < maxRetries) {
-                console.log(`Retrying upload: ${Bucket}/${Key} retryNum: ${retryNum}/${maxRetries}`);
-                // recursive call
-                this.upload(params, { retryNum: ++retryNum }, awsOptions, callback);
+                let delaySecs = 1000 * retryNum;
+                setTimeout(() => {
+                    console.log(`Retrying upload: ${Bucket}/${Key} retryNum: ${retryNum}/${maxRetries}`);
+                    // recursive call
+                    this.upload(params, { retryNum: ++retryNum }, awsOptions, callback);
+                }, delaySecs);
+                
             } else {
                 console.error(`Max retries reached. Failed uploading: ${Bucket}/${Key}`);
                 callback(err);
