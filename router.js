@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const multer  = require('multer')
+const multer  = require('multer');
 const upload = multer();
+const path = require('path');
 
 const configJson = require('./config/config.json');
+const publicConfigJson = require('./config/publicConfig.json');
 const fileUtil = require('./src/fileUtil');
 
 
@@ -23,10 +25,17 @@ router.get('/', (req, res) => {
 });
 
 /**
+ * Get the public config JSON
+ */
+router.get('/config', (req, res) => {
+    res.sendFile(path.join(__dirname, 'config', 'publicConfig.json'));
+});
+
+/**
  * Upload the file based on the name
  * The most important part is that the Request object should have the <file> property where its <buffer> contains the actual binary data of the file
  */
-router.post('/file/:name', upload.single(configJson.FILE_FORM_UPLOAD_FIELD_KEY), async (req, res) => {
+router.post('/file/:name', upload.single(publicConfigJson.FILE_FORM_UPLOAD_FIELD_KEY), async (req, res) => {
     const params = req.params;
     const data = req.body;
     const file = req.file;
@@ -162,7 +171,10 @@ router.get('/file/list', async (req, res) => {
         data.action = ACTIONS.LIST;
 
         listResult = await fileUtil.listFiles({
-            awsParams: { Bucket: configJson.AWS_BUCKET_NAME }
+            awsParams: { 
+                Bucket: configJson.AWS_BUCKET_NAME,
+                Prefix: configJson.AWS_BUCKET_FOLDER_NAME
+            }
         });
 
     } catch (err) {

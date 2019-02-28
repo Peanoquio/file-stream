@@ -1,15 +1,20 @@
 const express = require('express');
 const cors = require('cors');
 const ip = require('ip');
+const path = require('path');
 const bodyParser = require('body-parser');
 
 const configJson = require('./config/config.json');
+const publicConfigJson = require('./config/publicConfig.json');
 const router = require('./router');
 
 console.log('Starting server with config:', configJson);
 
 const app = express();
-const PORT = configJson.HTTP_SERVER_PORT;
+const PORT = publicConfigJson.HTTP_SERVER_PORT;
+
+// serve static files
+app.use('/view', express.static(path.join(__dirname, 'public')));
 
 // parses the text as JSON and exposes the resulting object on req.body.
 app.use(bodyParser.urlencoded({ extended: true }));
