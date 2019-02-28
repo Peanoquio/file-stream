@@ -2,6 +2,20 @@
     let URL = '';
 
     /**
+     * Create the anchor link element
+     * @param {string} linkPath 
+     * @param {string} linkTextPrefix
+     * @returns {HTMLAnchorElement}
+     */
+    const createAnchorLinkElement = (linkPath, linkTextPrefix = '') => {
+        const a = document.createElement('a');
+        a.setAttribute('href', linkPath);
+        const linkText = document.createTextNode(`${linkTextPrefix}${linkPath}`);
+        a.appendChild(linkText);
+        return a;
+    };
+
+    /**
      * Make a server call
      * @param {string} filePath 
      * @param {string} method
@@ -30,11 +44,33 @@
         xhr.send(null);
     };
 
+
     // call the server to get the config file
     serverCall('../../config', 'GET', (err, data) => {
         data = JSON.parse(data);
 
         URL = `http://${data.HTTP_SERVER_IP}:${data.HTTP_SERVER_PORT}`;
+
+        /**
+         * Create the delete button element
+         * @param {string} url 
+         * @returns {HTMLInputElement}
+         */
+        const createDeleteButtonElement = (url) => {
+            const btnElem = document.createElement('input');
+            btnElem.setAttribute('type', 'button');
+            btnElem.setAttribute('value', 'delete');
+            btnElem.addEventListener('click', (ev) => {
+                serverCall(url, 'DELETE', (err, data) => {
+                    if (err) {
+                        console.error('DELETE error:', err);
+                    } else {
+                        console.log('DELETE success:', data);
+                    }
+                });
+            });
+            return btnElem;
+        };
 
         /**
          * List the files/objects from AWS
@@ -49,6 +85,35 @@
                         resolve(data);
                     }
                 });
+            });
+        };
+
+        /**
+         * List the files as HTML elements
+         */
+        const listFilesElements = () => {
+            // based on the listed files, create the HTML elements
+            listFilesPromise().then(data => {
+                data = JSON.parse(data);
+                const docFrag = document.createDocumentFragment();
+                // generate the elements
+                data.result.forEach(obj => {
+                    let name = obj.Name;
+                    let ext = obj.Extension.substring(1);
+                    let url = `${URL}/file/${ext}/${name}`;
+                    // create the link to GET the resource
+                    let aLinkElem = createAnchorLinkElement(url, 'GET from ');
+                    docFrag.appendChild(aLinkElem);
+                    // create the delete button 
+                    let delBtnElem = createDeleteButtonElement(url);
+                    docFrag.appendChild(delBtnElem);
+                    let brElem = document.createElement('br');
+                    docFrag.appendChild(brElem);
+                });
+                const listFilesElem = document.getElementById('listoffiles');
+                listFilesElem.appendChild(docFrag);
+            }).catch(err => {
+                console.error('listFilesPromise error:', err);
             });
         };
 
@@ -81,7 +146,7 @@
             }
             // AJAX call
             xhr.open('POST', url, true);
-            xhr.onreadystatechange = function() {
+            xhr.onreadystatechange = () => {
                 /*
                 Holds the status of the XMLHttpRequest. 
                 0: request not initialized 
@@ -98,12 +163,7 @@
             xhr.send(formData);
         };
 
-        listFilesPromise().then(results => {
-            console.log('listFilesPromise results:', results);
-        }).catch(err => {
-            console.error('listFilesPromise error:', err);
-        });
-
+        
         let file = null;
 
         // select file field
@@ -120,7 +180,7 @@
 
         // upload file button
         const uploadfiles = document.getElementById('uploadfilebtn');
-        uploadfiles.addEventListener('click', function(e) {
+        uploadfiles.addEventListener('click', (e) => {
             console.log('uploading:', file);
             uploadFile(file);
         }, false);
@@ -128,6 +188,9 @@
         // form 
         const myform = document.getElementById('myform');
         myform.appendChild(selectfiles);
+
+        // display the file list
+        listFilesElements();
     });
 
 })();
