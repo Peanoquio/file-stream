@@ -1,23 +1,29 @@
 {
   "name": "file_stream",
   "version": "1.0.0",
-  "description": "",
+  "description": "The REST API HTTP server to handle file streaming",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha ./test/test*.js --exit"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Oliver Ryan Chong (Peanoquio)",
+  "license": "MIT",
   "dependencies": {
     "aws-sdk": "^2.409.0",
     "body-parser": "^1.18.3",
     "cors": "^2.8.5",
     "express": "^4.16.3",
+    "form-data": "^2.3.3",
     "ip": "^1.1.5",
     "mime": "^2.4.0",
     "multer": "^1.4.1",
-    "request": "^2.87.0",
+    "request": "^2.88.0",
     "streamifier": "^0.1.1",
     "tar": "^4.4.8"
+  },
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "mocha": "^6.0.2"
   }
 }
