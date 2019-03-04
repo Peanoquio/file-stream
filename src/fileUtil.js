@@ -5,7 +5,7 @@ const zlib = require('zlib');
 const tar = require('tar');
 const crypto = require('crypto');
 const streamifier = require('streamifier');
-const { Transform, PassThrough } = require('stream');
+const { Transform, PassThrough, Duplex } = require('stream');
 
 const configJson = require('../config/config.json');
 const awsUtil = require('./awsUtil');
@@ -58,6 +58,18 @@ const createReadStream = async (buffer, filePath = '', options = {}) => {
     }
     return readStream;
 };
+
+/**
+* Converts buffer to a stream
+* @param {Buffer} buffer 
+* @returns {Duplex}
+*/
+const bufferToStream = (buffer) => {
+    const duplexStream = new Duplex;
+    duplexStream.push(buffer);
+    duplexStream.push(null);
+    return duplexStream;
+ };
 
 
 /**
@@ -187,7 +199,7 @@ class FileUtil {
                             reject(err);
                         })
                         .on('finish', () => {
-                            console.log(`completed uploading to AWS: ${fileName}${COMPRESSED_FILE_EXT}`);
+                            console.log(`completed uploading to AWS: ${awsParams.Bucket}/${awsParams.Key}/${fileName}${COMPRESSED_FILE_EXT}`);
                         });
                 }
 
@@ -562,6 +574,8 @@ class FileUtil {
     }
 
 } // end class
+
+FileUtil.prototype.convertBufferToStream = bufferToStream;
 
 
 const fileUtil = new FileUtil();
